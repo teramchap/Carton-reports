@@ -685,7 +685,9 @@
         <label class="req">نقش</label>
         <select id="u_role">
           <option value="ادمین">ادمین</option>
-          <option value="کنترل کیفیت">کنترل کیفیت</option>
+          <option value="کنترل کیفیت کارتن‌سازی">کنترل کیفیت کارتن‌سازی</option>
+          <option value="کنترل کیفیت آزمایشگاه">کنترل کیفیت آزمایشگاه</option>
+          <option value="کنترل کیفیت کامل">کنترل کیفیت کامل</option>
           <option value="مشاهده‌کننده">مشاهده‌کننده</option>
         </select>
       </div>
@@ -851,9 +853,9 @@
 
   <div class="panel" id="settings-permissions" style="display:none;">
     <h2>دسترسی‌ها</h2>
-    <p style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 12px;">دسترسی «ادمین» همیشه کامل است و قابل محدودسازی نیست (برای جلوگیری از قفل‌شدن سامانه). فقط دسترسی نقش‌های «کنترل کیفیت» و «مشاهده‌کننده» را از این‌جا تنظیم کنید — تغییرات بلافاصله ذخیره می‌شوند.</p>
+    <p style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 12px;">دسترسی «ادمین» همیشه کامل است و قابل محدودسازی نیست (برای جلوگیری از قفل‌شدن سامانه). دسترسی هر یک از نقش‌های «کنترل کیفیت کارتن‌سازی»، «کنترل کیفیت آزمایشگاه»، «کنترل کیفیت کامل» و «مشاهده‌کننده» را جداگانه از این‌جا تنظیم کنید — تغییرات بلافاصله ذخیره می‌شوند.</p>
     <div class="table-wrap">
-      <table><thead><tr><th>بخش</th><th>کنترل کیفیت</th><th>مشاهده‌کننده</th></tr></thead><tbody id="perm_body"></tbody></table>
+      <table><thead><tr><th>بخش</th><th>کنترل کیفیت کارتن‌سازی</th><th>کنترل کیفیت آزمایشگاه</th><th>کنترل کیفیت کامل</th><th>مشاهده‌کننده</th></tr></thead><tbody id="perm_body"></tbody></table>
     </div>
   </div>
 
@@ -2641,6 +2643,16 @@ function exportReportCsv(kind){
 
 // ==================== مدیریت کاربران ====================
 
+var USER_ROLES = ['ادمین', 'کنترل کیفیت کارتن\u200cسازی', 'کنترل کیفیت آزمایشگاه', 'کنترل کیفیت کامل', 'مشاهده\u200cکننده'];
+
+async function changeUserRole(username, role){
+  try{
+    await gsRun('apiSetUserRole', [currentSession.username, username, role]);
+    toast('نقش کاربر تغییر کرد');
+  }catch(e){}
+  loadUsers();
+}
+
 async function loadUsers(){
   if (!currentSession) return;
   try{
@@ -2649,7 +2661,10 @@ async function loadUsers(){
       var isSelf = u.Username === currentSession.username;
       var statusClass = u.Active === 'غیرفعال' ? 'status-open' : 'status-closed';
       var toggleBtn = isSelf ? '' : '<button class="small" onclick="toggleUserActive(\''+u.Username+'\')">'+(u.Active==='غیرفعال'?'فعال‌سازی':'غیرفعال‌سازی')+'</button>';
-      return '<tr><td>'+escapeHtml(u.Username)+'</td><td>'+escapeHtml(u.FullName)+'</td><td>'+escapeHtml(u.Role)+'</td>'
+      var roleCell = isSelf ? escapeHtml(u.Role)
+        : '<select style="width:auto;" onchange="changeUserRole(\''+u.Username+'\', this.value)">'
+          + USER_ROLES.map(function(r){ return '<option value="'+r+'"'+(r===u.Role?' selected':'')+'>'+r+'</option>'; }).join('') + '</select>';
+      return '<tr><td>'+escapeHtml(u.Username)+'</td><td>'+escapeHtml(u.FullName)+'</td><td>'+roleCell+'</td>'
         + '<td class="'+statusClass+'">'+escapeHtml(u.Active)+'</td><td>'+toggleBtn+'</td></tr>';
     }).join('') || '<tr><td colspan="5" class="empty-hint" style="padding:16px;">کاربری ثبت نشده</td></tr>';
   }catch(e){}
@@ -5088,17 +5103,19 @@ function exportComboEctReportCsv(){
 
 async function loadPermissionsPanel(){
   var body = document.getElementById('perm_body');
-  body.innerHTML = '<tr><td colspan="3" class="empty-hint" style="padding:16px;">در حال بارگذاری...</td></tr>';
+  body.innerHTML = '<tr><td colspan="5" class="empty-hint" style="padding:16px;">در حال بارگذاری...</td></tr>';
   try{
     var rows = await gsRun('apiListPermissions', [currentSession.username]) || [];
     body.innerHTML = rows.map(function(r){
       var keyEsc = String(r.Key).replace(/'/g,"\\'");
       return '<tr>'
         + '<td>'+escapeHtml(r.Label)+'</td>'
-        + '<td style="text-align:center;"><input type="checkbox" style="width:auto;" '+(r.QC==='بله'?'checked':'')+' onchange="togglePermission(\''+keyEsc+'\',\'qc\',this.checked)"></td>'
-        + '<td style="text-align:center;"><input type="checkbox" style="width:auto;" '+(r.Viewer==='بله'?'checked':'')+' onchange="togglePermission(\''+keyEsc+'\',\'viewer\',this.checked)"></td>'
+        + [['carton','Carton'],['lab','Lab'],['full','Full'],['viewer','Viewer']].map(function(x){
+            return '<td style="text-align:center;"><input type="checkbox" style="width:auto;" '+(r[x[1]]==='بله'?'checked':'')
+              +' onchange="togglePermission(\''+keyEsc+'\',\''+x[0]+'\',this.checked)"></td>';
+          }).join('')
         + '</tr>';
-    }).join('') || '<tr><td colspan="3" class="empty-hint" style="padding:16px;">موردی یافت نشد</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="empty-hint" style="padding:16px;">موردی یافت نشد</td></tr>';
   }catch(e){}
 }
 
