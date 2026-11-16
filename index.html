@@ -1102,6 +1102,7 @@
     <p style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 12px;">فقط سفارشات محصول تکمیل‌شده اینجا قابل جستجو و چاپ هستند.</p>
     <div class="search-row">
       <input id="coaSearchBox" placeholder="جستجو بر اساس شماره سفارش، کد یا نام محصول" oninput="renderCoaList()">
+      <input id="coaCustomerBox" placeholder="جستجو بر اساس نام مشتری" oninput="renderCoaList()">
       <button class="mini" onclick="loadCoaList()">بروزرسانی</button>
       <span class="empty-hint" id="coaRowCount"></span>
     </div>
@@ -4305,9 +4306,16 @@ async function loadCoaList(){
   }catch(e){}
 }
 
+// برای جستجوی مشتری: ی/ک عربی و فارسی و نیم‌فاصله یکسان گرفته می‌شوند
+function normFa_(t){
+  return String(t == null ? '' : t).replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\u200c/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 function renderCoaList(){
   var q = document.getElementById('coaSearchBox').value.trim();
+  var qc = normFa_(document.getElementById('coaCustomerBox').value);
   var rows = coaCache.filter(function(r){
+    if (qc && normFa_(r.Customer).indexOf(qc) === -1) return false;
     if (!q) return true;
     return (String(r.OrderNumber||'').indexOf(q) !== -1) || (String(r.ProductCode||'').indexOf(q) !== -1) || (String(r.ProductName||'').indexOf(q) !== -1);
   });
