@@ -261,6 +261,13 @@
     body > *:not(#coaPrintArea){display:none !important;}
     #coaPrintArea{display:block !important;}
   }
+
+.suggest-wrap{ position:relative; flex:1; min-width:200px; }
+.suggest-box{ position:absolute; top:100%; right:0; left:0; z-index:50; background:#fff; border:1px solid #cfd6e0; border-radius:8px;
+  box-shadow:0 6px 18px rgba(0,0,0,.14); max-height:240px; overflow-y:auto; margin-top:2px; }
+.suggest-item{ padding:8px 12px; cursor:pointer; font-size:13px; display:flex; justify-content:space-between; gap:10px; }
+.suggest-item:hover{ background:#eef3fb; }
+.suggest-item small{ color:#7a8494; white-space:nowrap; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -1102,7 +1109,12 @@
     <p style="font-size:11.5px;color:var(--ink-soft);margin:-8px 0 12px;">فقط سفارشات محصول تکمیل‌شده اینجا قابل جستجو و چاپ هستند.</p>
     <div class="search-row">
       <input id="coaSearchBox" placeholder="جستجو بر اساس شماره سفارش، کد یا نام محصول" oninput="renderCoaList()">
-      <input id="coaCustomerBox" placeholder="جستجو بر اساس نام مشتری" oninput="renderCoaList()">
+      <div class="suggest-wrap">
+        <input id="coaCustomerBox" placeholder="جستجو بر اساس نام مشتری" autocomplete="off"
+               oninput="renderCoaList(); showCoaCustomerSuggest()" onfocus="showCoaCustomerSuggest()"
+               onblur="setTimeout(hideCoaCustomerSuggest, 180)" onkeydown="if(event.key==='Escape') hideCoaCustomerSuggest()">
+        <div id="coaCustomerSuggest" class="suggest-box" style="display:none;"></div>
+      </div>
       <button class="mini" onclick="loadCoaList()">بروزرسانی</button>
       <span class="empty-hint" id="coaRowCount"></span>
     </div>
@@ -4309,6 +4321,34 @@ async function loadCoaList(){
 // برای جستجوی مشتری: ی/ک عربی و فارسی و نیم‌فاصله یکسان گرفته می‌شوند
 function normFa_(t){
   return String(t == null ? '' : t).replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\u200c/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+var coaSuggestNames = [];
+
+function showCoaCustomerSuggest(){
+  var box = document.getElementById('coaCustomerSuggest');
+  var qc = normFa_(document.getElementById('coaCustomerBox').value);
+  var counts = {};
+  coaCache.forEach(function(r){ if (r.Customer) counts[r.Customer] = (counts[r.Customer] || 0) + 1; });
+  coaSuggestNames = Object.keys(counts).filter(function(n){ return !qc || normFa_(n).indexOf(qc) !== -1; })
+    .sort(function(a, b){ return a.localeCompare(b, 'fa'); });
+  // اگر دقیقاً همان یک نام تایپ شده، نیازی به پیشنهاد نیست
+  if (!coaSuggestNames.length || (coaSuggestNames.length === 1 && normFa_(coaSuggestNames[0]) === qc)){ box.style.display = 'none'; return; }
+  box.innerHTML = coaSuggestNames.map(function(n, i){
+    return '<div class="suggest-item" onmousedown="pickCoaCustomer(' + i + ')"><span>' + escapeHtml(n) + '</span><small>' + counts[n] + ' سفارش</small></div>';
+  }).join('');
+  box.style.display = 'block';
+}
+
+function hideCoaCustomerSuggest(){
+  var box = document.getElementById('coaCustomerSuggest');
+  if (box) box.style.display = 'none';
+}
+
+function pickCoaCustomer(i){
+  document.getElementById('coaCustomerBox').value = coaSuggestNames[i] || '';
+  hideCoaCustomerSuggest();
+  renderCoaList();
 }
 
 function renderCoaList(){
