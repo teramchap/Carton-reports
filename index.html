@@ -94,11 +94,13 @@
   .chart-pt:hover{r:6;}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;}
   label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:5px;}
-  input,select{
+  input,select,textarea{
     width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line);
     background:#fff;font-family:inherit;font-size:13.5px;color:var(--ink);
   }
-  input:focus,select:focus{outline:none;border-color:var(--kraft);box-shadow:0 0 0 3px rgba(169,104,59,.15);}
+  textarea{resize:vertical;min-height:38px;}
+  .desc-cell{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--kraft);box-shadow:0 0 0 3px rgba(169,104,59,.15);}
   .field-with-btn{display:flex;gap:6px;}
   .field-with-btn input{flex:1;}
   .mini{padding:8px 10px;font-size:12px;white-space:nowrap;}
@@ -371,6 +373,10 @@
         <label class="req">تامین کننده</label>
         <select id="f_supplier"><option value="">انتخاب کنید</option></select>
       </div>
+      <div style="grid-column:1/-1;">
+        <label>توضیحات (اختیاری)</label>
+        <textarea id="f_desc" rows="2" placeholder="هر توضیحی درباره‌ی این رول؛ مثلاً وضعیت ظاهری یا نکته‌ی تحویل"></textarea>
+      </div>
     </div>
     <div class="actions-row">
       <span id="pendingNc" style="align-self:center;font-size:12px;color:var(--red);"></span>
@@ -382,7 +388,7 @@
   <div class="panel">
     <h2>فهرست کاغذهای ثبت‌شده</h2>
     <div class="search-row">
-      <input id="searchBox" placeholder="جستجو بر اساس تاریخ یا شماره سند" oninput="renderTable()">
+      <input id="searchBox" placeholder="جستجو بر اساس تاریخ، شماره سند یا توضیحات" oninput="renderTable()">
       <button class="mini" onclick="loadPapers()">بروزرسانی</button>
       <span class="empty-hint" id="rowCount"></span>
       <span style="flex:1;"></span>
@@ -1541,7 +1547,7 @@ function buildPaperTableHead_(){
   var head = document.getElementById('paperTableHead');
   var cols = [
     ['شماره سند','DocNumber'],['تاریخ ورود','Date'],['نوع کاغذ','PaperType'],['عرض رول','RollWidth'],
-    ['گرماژ اسمی','NominalWeight'],['تامین کننده','Supplier']
+    ['گرماژ اسمی','NominalWeight'],['تامین کننده','Supplier'],['توضیحات','Description']
   ];
   paperTestTypes.forEach(function(t){ cols.push([t.Name + (t.Unit?' ('+t.Unit+')':''), 'TEST:'+t.Name]); });
   cols.push(['BI','BI']);
@@ -1656,11 +1662,11 @@ function renderTable(){
   var q = document.getElementById('searchBox').value.trim();
   var rows = papers.filter(function(p){
     if (!q) return true;
-    return (String(p.DocNumber||'').indexOf(q) !== -1) || (String(p.Date||'').indexOf(q) !== -1);
+    return (String(p.DocNumber||'').indexOf(q) !== -1) || (String(p.Date||'').indexOf(q) !== -1) || (String(p.Description||'').indexOf(q) !== -1);
   });
   document.getElementById('rowCount').textContent = rows.length + ' مورد';
   if (paperSortState.key) rows.sort(function(a,b){ return compareSort_(a,b,paperSortState.key,paperSortState.dir); });
-  var colCount = 6 + paperTestTypes.length + 3;
+  var colCount = 7 + paperTestTypes.length + 3;
   var body = document.getElementById('papersBody');
   body.innerHTML = rows.map(function(p){
     var docCell = p.DocNumber
@@ -1692,6 +1698,7 @@ function renderTable(){
       + '<td>'+escapeHtml(p.RollWidth)+'</td>'
       + '<td>'+escapeHtml(p.NominalWeight)+'</td>'
       + '<td>'+escapeHtml(p.Supplier)+'</td>'
+      + '<td class="desc-cell" title="'+escapeHtml(p.Description||'')+'">'+(p.Description ? escapeHtml(p.Description) : '<span class="empty-hint">—</span>')+'</td>'
       + testCells
       + '<td>'+bi+'</td>'
       + '<td>'+ncCell+'</td>'
@@ -1776,6 +1783,7 @@ function openEditPaperModal(paperId){
     + '<div><label class="req">گرماژ اسمی</label><select id="pe_weight">'+nominalWeightsList.map(function(n){return '<option'+(String(n)===String(p.NominalWeight)?' selected':'')+'>'+escapeHtml(n)+'</option>';}).join('')+'</select></div>'
     + '<div><label class="req">عرض رول</label><input id="pe_width" type="number" value="'+escapeHtml(p.RollWidth)+'"></div>'
     + '<div><label class="req">تامین کننده</label><select id="pe_supplier">'+suppliers.map(function(n){return '<option'+(n===p.Supplier?' selected':'')+'>'+escapeHtml(n)+'</option>';}).join('')+'</select></div>'
+    + '<div style="grid-column:1/-1;"><label>توضیحات (اختیاری)</label><textarea id="pe_desc" rows="2">'+escapeHtml(p.Description)+'</textarea></div>'
     + '</div>'
     + '<div class="actions-row">'
     + '<button onclick="this.closest(\'.modal-overlay\').remove()">انصراف</button>'
@@ -1792,7 +1800,8 @@ async function submitEditPaper(paperId){
     paperType: document.getElementById('pe_type').value,
     nominalWeight: document.getElementById('pe_weight').value,
     rollWidth: document.getElementById('pe_width').value.trim(),
-    supplier: document.getElementById('pe_supplier').value
+    supplier: document.getElementById('pe_supplier').value,
+    description: document.getElementById('pe_desc').value.trim()
   };
   if (!payload.date || !payload.paperType || !payload.nominalWeight || !payload.rollWidth || !payload.supplier){
     toast('فیلدهای ستاره‌دار را تکمیل کنید', true);
@@ -1823,6 +1832,7 @@ async function submitPaper(){
     nominalWeight: document.getElementById('f_weight').value,
     rollWidth: document.getElementById('f_width').value.trim(),
     supplier: document.getElementById('f_supplier').value.trim(),
+    description: document.getElementById('f_desc').value.trim(),
     ncNumbers: pendingNcNumbers
   };
   if (!payload.date || !payload.paperType || !payload.nominalWeight || !payload.rollWidth || !payload.supplier){
@@ -1838,6 +1848,7 @@ async function submitPaper(){
     document.getElementById('f_weight').value = '';
     document.getElementById('f_width').value = '';
     document.getElementById('f_supplier').value = '';
+    document.getElementById('f_desc').value = '';
     pendingNcNumbers = [];
     document.getElementById('pendingNc').textContent = '';
     checkPaperFormValid();
@@ -2319,6 +2330,7 @@ async function viewPaperDetail(paperId){
       ['شماره سند', p.DocNumber], ['تاریخ ورود', p.Date], ['نوع کاغذ', p.PaperType],
       ['عرض رول', p.RollWidth], ['گرماژ اسمی', p.NominalWeight], ['تامین کننده', p.Supplier]
     ];
+    if (p.Description) baseRows.push(['توضیحات', p.Description]);
     var testRows = paperTestTypes.map(function(t){
       var res = p.Tests ? p.Tests[t.Name] : null;
       return [testLabelWithUnit_('paper', t.Name), res ? res.Avg : ''];
