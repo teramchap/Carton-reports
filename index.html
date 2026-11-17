@@ -1269,9 +1269,42 @@ function setToday(){ document.getElementById('f_date').value = todayJalaliStr();
 var SUPABASE_URL = 'https://qlugqrsmgipjgkjfegrn.supabase.co';
 var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsdWdxcnNtZ2lwamdramZlZ3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2NDg1MTYsImV4cCI6MjEwNDIyNDUxNn0.W9a9v2LqspA0VtfX3TIAJiruh1oJ4SVy-HZHmswHzt0';   // کلید عمومی (anon)؛ امنیت داده با دسترسی‌های سمت سرور (RLS) تامین می‌شود
 var ADMIN_LOGIN_EMAIL = 'dalouchee_2006@yahoo.com';
-var SB = (window.supabase && window.supabase.createClient)
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'teramQcAuth' } })
-  : null;
+var SB = null;
+
+function loadScript_(url){
+  return new Promise(function(resolve, reject){
+    var el = document.createElement('script');
+    var timer = setTimeout(function(){ reject(new Error('timeout: ' + url)); }, 8000);   // روی شبکه‌های فیلتر معمولاً درخواست معلق می‌ماند
+    el.src = url;
+    el.onload = function(){ clearTimeout(timer); resolve(); };
+    el.onerror = function(){ clearTimeout(timer); reject(new Error('load failed: ' + url)); };
+    document.head.appendChild(el);
+  });
+}
+
+// کتابخانه‌ی اتصال از چند منبع امتحان می‌شود (اگر یکی فیلتر/قطع بود، بعدی)
+async function ensureSB_(){
+  if (SB) return SB;
+  if (!(window.supabase && window.supabase.createClient)){
+    var urls = [
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js',
+      'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'
+    ];
+    for (var i = 0; i < urls.length && !(window.supabase && window.supabase.createClient); i++){
+      try{ await loadScript_(urls[i]); }catch(e){}
+    }
+  }
+  if (window.supabase && window.supabase.createClient){
+    SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'teramQcAuth' } });
+  }
+  return SB;
+}
+
+var NET_ERR_ = 'ارتباط با سرور برقرار نشد. اینترنت یا فیلترینگ را بررسی کنید (در صورت نیاز VPN را روشن کنید) و دوباره تلاش کنید.';
+function isNetErr_(e){
+  var m = String((e && (e.message || e.name)) || '').toLowerCase();
+  return !e || e.status === 0 || e.status === undefined || m.indexOf('fetch') !== -1 || m.indexOf('network') !== -1 || m.indexOf('retryable') !== -1 || m.indexOf('failed to') !== -1;
+}
 
 function loginEmail_(u){
   u = String(u || '').trim();
@@ -1281,8 +1314,13 @@ function loginEmail_(u){
 }
 
 async function sbApi_(fnName, args){
-  var r = await SB.rpc('api', { p_fn: fnName, p_args: args || [] });
-  if (r.error) throw new Error(r.error.message || 'خطای سرور');
+  var r;
+  try{ r = await SB.rpc('api', { p_fn: fnName, p_args: args || [] }); }
+  catch(e){ throw new Error(NET_ERR_); }
+  if (r.error){
+    if (isNetErr_(r.error) && !r.error.code) throw new Error(NET_ERR_);
+    throw new Error(r.error.message || 'خطای سرور');
+  }
   return r.data;
 }
 
@@ -1313,11 +1351,17 @@ async function coaQr_(args){
 
 function gsRun(fnName, args){
   return (async function(){
-    if (!SB) throw new Error('اتصال به سرور برقرار نشد (کتابخانه بارگذاری نشد)');
+    await ensureSB_();
+    if (!SB) throw new Error(NET_ERR_);
     if (fnName === 'apiLogin'){
       var cred = (args && args[0]) || {};
-      var r = await SB.auth.signInWithPassword({ email: loginEmail_(cred.username), password: cred.password });
-      if (r.error) throw new Error('نام کاربری یا رمز عبور اشتباه است');
+      var r;
+      try{ r = await SB.auth.signInWithPassword({ email: loginEmail_(cred.username), password: cred.password }); }
+      catch(e){ throw new Error(NET_ERR_); }
+      if (r.error){
+        if (isNetErr_(r.error)) throw new Error(NET_ERR_);
+        throw new Error('نام کاربری یا رمز عبور اشتباه است');
+      }
       var me = await SB.rpc('api', { p_fn: 'apiMe', p_args: [] });
       if (me.error || !me.data){
         await SB.auth.signOut();
@@ -4577,6 +4621,7 @@ function logout(){
 async function init(){
   setToday();
   try{
+    await ensureSB_();
     if (!SB) return;
     var s = await SB.auth.getSession();
     if (s.data && s.data.session){
