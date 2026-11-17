@@ -269,9 +269,6 @@
 .suggest-item:hover{ background:#eef3fb; }
 .suggest-item small{ color:#7a8494; white-space:nowrap; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -1283,18 +1280,28 @@ function loadScript_(url){
 }
 
 // کتابخانه‌ی اتصال از چند منبع امتحان می‌شود (اگر یکی فیلتر/قطع بود، بعدی)
+var libPromises_ = {};
+// کتابخانه‌ها بعد از بالا آمدن صفحه و با چند منبع جایگزین بارگذاری می‌شوند؛ فیلتر بودن یکی از منابع صفحه را قفل نمی‌کند
+function ensureLib_(key, isReady, urls){
+  if (isReady()) return Promise.resolve(true);
+  if (!libPromises_[key]){
+    libPromises_[key] = (async function(){
+      for (var i = 0; i < urls.length && !isReady(); i++){ try{ await loadScript_(urls[i]); }catch(e){} }
+      var ok = !!isReady();
+      if (!ok) delete libPromises_[key];
+      return ok;
+    })();
+  }
+  return libPromises_[key];
+}
+
 async function ensureSB_(){
   if (SB) return SB;
-  if (!(window.supabase && window.supabase.createClient)){
-    var urls = [
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js',
-      'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'
-    ];
-    for (var i = 0; i < urls.length && !(window.supabase && window.supabase.createClient); i++){
-      try{ await loadScript_(urls[i]); }catch(e){}
-    }
-  }
-  if (window.supabase && window.supabase.createClient){
+  await ensureLib_('sb', function(){ return window.supabase && window.supabase.createClient; }, [
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js',
+    'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js'
+  ]);
+  if (window.supabase && window.supabase.createClient && !SB){
     SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'teramQcAuth' } });
   }
   return SB;
@@ -1341,7 +1348,9 @@ function coaQrText_(entry, params){
 
 async function coaQr_(args){
   var d = await sbApi_('apiLabGetProductCoaData', args);
-  if (!window.qrcode) throw new Error('تولید QR ناموفق بود');
+  await ensureLib_('qr', function(){ return window.qrcode; }, [
+    'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js', 'https://unpkg.com/qrcode-generator@1.4.4/qrcode.js']);
+  if (!window.qrcode) throw new Error('تولید QR ناموفق بود (کتابخانه‌ی QR بارگذاری نشد)');
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
   var qr = qrcode(0, 'M');
   qr.addData(coaQrText_(d.entry, d.params), 'Byte');
@@ -4622,7 +4631,11 @@ async function init(){
   setToday();
   try{
     await ensureSB_();
-    if (!SB) return;
+    if (!SB){
+      var gm = document.getElementById('gateMsg');
+      if (gm){ gm.style.color = 'var(--red)'; gm.textContent = NET_ERR_; }
+      return;
+    }
     var s = await SB.auth.getSession();
     if (s.data && s.data.session){
       var me = await SB.rpc('api', { p_fn: 'apiMe', p_args: [] });
@@ -5253,6 +5266,8 @@ async function downloadBackup(kind){
       blob = new Blob([bytes], {type:'application/json'});
       fileName = res.fileName;
     } else {
+      await ensureLib_('xlsx', function(){ return window.XLSX; }, [
+        'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js']);
       if (!window.XLSX) throw new Error('کتابخانه‌ی Excel بارگذاری نشد؛ از دکمه‌ی JSON استفاده کنید');
       status.textContent = 'در حال ساخت فایل Excel (ممکن است چند ثانیه طول بکشد)...';
       await new Promise(function(r){ setTimeout(r, 30); });
