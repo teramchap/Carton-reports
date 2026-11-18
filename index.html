@@ -1946,7 +1946,7 @@ function renderNcTable(){
       + '<td>'+escapeHtml(r.Description||'—')+'</td>'
       + '<td>'+escapeHtml(r.Result||'—')+'</td>'
       + '<td class="'+statusClass+'">'+escapeHtml(r.Status)+'</td>'
-      + '<td><button class="ghost small" onclick="viewNc(\''+r.ID+'\')">مشاهده</button></td>'
+      + '<td><button class="ghost small" onclick="viewNc(\''+r.ID+'\')">'+(canDo('nc.manage') ? 'ویرایش' : 'مشاهده')+'</button></td>'
       + '</tr>';
   }).join('') || '<tr><td colspan="10" class="empty-hint" style="padding:20px;">موردی ثبت نشده است</td></tr>';
 }
@@ -1954,7 +1954,7 @@ function renderNcTable(){
 function renderNcDetailModal_(r){
   var isOpen = r.Status !== 'بسته';
   var statusClass = isOpen ? 'status-open' : 'status-closed';
-  if (!isOpen){
+  if (!canDo('nc.manage')){        // بدون دسترسی ثبت/ویرایش عدم انطباق فقط مشاهده
     return ''
       + '<div class="modal-overlay" onclick="if(event.target===this) this.remove()">'
       + '<div class="modal">'
@@ -1972,7 +1972,7 @@ function renderNcDetailModal_(r){
   return ''
     + '<div class="modal-overlay" onclick="if(event.target===this) this.remove()">'
     + '<div class="modal">'
-    + '<h3>ویرایش عدم انطباق '+r.ID+'</h3>'
+    + '<h3>ویرایش عدم انطباق '+r.ID+(isOpen ? '' : ' <span class="status-closed" style="font-size:12px;">(بسته‌شده)</span>')+'</h3>'
     + '<div class="grid">'
     + '<div><label class="req">شماره فرم</label><input id="ncE_form" type="number" value="'+escapeHtml(r.FormNumber)+'"></div>'
     + '<div><label>تاریخ صدور</label><input id="ncE_date" value="'+escapeHtml(r.IssueDate)+'"></div>'
