@@ -4086,6 +4086,7 @@ async function openRmParamsModal(entryId){
 function openRmParamEntryModal(entryId, paramName, unit){
   var entry = rmCache.find(function(x){ return x.ID === entryId; });
   var existing = (entry && entry.Tests && entry.Tests[paramName] && entry.Tests[paramName].Values) || [];
+  var existingDesc = (entry && entry.Tests && entry.Tests[paramName] && entry.Tests[paramName].Description) || '';
   var fields = '';
   for (var i=1;i<=15;i++){
     var v = existing[i-1] !== undefined ? existing[i-1] : '';
@@ -4098,6 +4099,7 @@ function openRmParamEntryModal(entryId, paramName, unit){
     + '<h3>ورود اطلاعات — '+escapeHtml(paramName)+(unit?' ('+escapeHtml(unit)+')':'')+'</h3>'
     + '<p style="font-size:11.5px;color:var(--ink-soft);margin-top:-8px;">تکمیل همه فیلدها الزامی نیست. میانگین مقادیر واردشده ثبت می‌شود.</p>'
     + '<div class="test-grid">'+fields+'</div>'
+    + '<div style="margin-top:10px;"><label>توضیحات (اختیاری)</label><textarea id="rmv_desc" rows="2" placeholder="توضیح درباره‌ی این آزمون">'+escapeHtml(existingDesc)+'</textarea></div>'
     + '<div class="actions-row">'
     + deleteBtn
     + '<button onclick="openRmParamsModal(\''+entryId+'\')">بازگشت</button>'
@@ -4114,7 +4116,7 @@ async function submitRmParam(entryId, paramName, unit){
   }
   if (!values.length){ toast('حداقل یک مقدار وارد کنید', true); return; }
   try{
-    await gsRun('apiLabSubmitRawMaterialParam', [currentSession.username, {entryId:entryId, paramName:paramName, unit:unit, values:values}]);
+    await gsRun('apiLabSubmitRawMaterialParam', [currentSession.username, {entryId:entryId, paramName:paramName, unit:unit, values:values, description:document.getElementById('rmv_desc').value.trim()}]);
     toast('اطلاعات پارامتر ثبت شد');
     await loadRawMaterialsList();
     openRmParamsModal(entryId);
@@ -4323,6 +4325,7 @@ async function openPeParamsModal(entryId){
 function openPeParamEntryModal(entryId, paramName, unit, referenceNumber){
   var entry = peCache.find(function(x){ return x.ID === entryId; });
   var existing = (entry && entry.Tests && entry.Tests[paramName] && entry.Tests[paramName].Values) || [];
+  var existingDesc = (entry && entry.Tests && entry.Tests[paramName] && entry.Tests[paramName].Description) || '';
   var fields = '';
   for (var i=1;i<=15;i++){
     var v = existing[i-1] !== undefined ? existing[i-1] : '';
@@ -4339,6 +4342,7 @@ function openPeParamEntryModal(entryId, paramName, unit, referenceNumber){
     + refHtml
     + '<p style="font-size:11.5px;color:var(--ink-soft);margin-top:-8px;">تکمیل همه فیلدها الزامی نیست. میانگین مقادیر واردشده ثبت می‌شود.</p>'
     + '<div class="test-grid">'+fields+'</div>'
+    + '<div style="margin-top:10px;"><label>توضیحات (اختیاری)</label><textarea id="pev_desc" rows="2" placeholder="توضیح درباره‌ی این آزمون">'+escapeHtml(existingDesc)+'</textarea></div>'
     + '<div class="actions-row">'
     + deleteBtn
     + '<button onclick="openPeParamsModal(\''+entryId+'\')">بازگشت</button>'
@@ -4355,7 +4359,7 @@ async function submitPeParam(entryId, paramName, unit){
   }
   if (!values.length){ toast('حداقل یک مقدار وارد کنید', true); return; }
   try{
-    await gsRun('apiLabSubmitProductEntryParam', [currentSession.username, {entryId:entryId, paramName:paramName, unit:unit, values:values}]);
+    await gsRun('apiLabSubmitProductEntryParam', [currentSession.username, {entryId:entryId, paramName:paramName, unit:unit, values:values, description:document.getElementById('pev_desc').value.trim()}]);
     toast('اطلاعات پارامتر ثبت شد');
     await loadProductEntriesList();
     openPeParamsModal(entryId);
